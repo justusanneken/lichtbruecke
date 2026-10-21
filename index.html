@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lichtbrücke — Dateien per Licht übertragen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14130f;
+    --panel: #1c1a15;
+    --panel-2: #221f18;
+    --paper: #f2efe9;
+    --paper-dim: #c9c4b8;
+    --paper-faint: #8b877c;
+    --amber: #e3a857;
+    --amber-dim: #7a5f34;
+    --cyan: #6fd0d9;
+    --cyan-dim: #3c6a6e;
+    --line: #37342a;
+    --danger: #d9695f;
+    --good: #8fc78a;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top, #1a1812 0%, var(--bg) 55%);
+    color:var(--paper);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding:32px 16px 64px;
+  }
+  .wrap{max-width:640px; margin:0 auto;}
+
+  /* ---------- header ---------- */
+  header{margin-bottom:28px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--amber); margin:0 0 10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{
+    content:""; width:7px; height:7px; border-radius:50%;
+    background:var(--amber); box-shadow:0 0 0 3px rgba(227,168,87,.18);
+  }
+  h1{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600; font-size:clamp(28px,6vw,38px);
+    margin:0 0 8px; letter-spacing:-.01em;
+  }
+  .tagline{color:var(--paper-dim); font-size:15px; line-height:1.55; margin:0; max-width:52ch;}
+
+  /* ---------- mode dial ---------- */
+  .dial{
+    display:flex; gap:2px; background:var(--line); border-radius:12px;
+    padding:2px; margin:24px 0 20px;
+  }
+  .dial button{
+    flex:1; padding:12px 10px; border:none; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:13px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--paper-dim);
+    background:transparent; border-radius:9px;
+    transition:background .18s ease, color .18s ease;
+  }
+  .dial button.active{background:var(--panel-2); color:var(--paper);}
+  .dial button:not(.active):hover{color:var(--paper);}
+
+  section.panel{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); padding:24px;
+  }
+  section.panel + section.panel{margin-top:16px;}
+  .hidden{display:none !important;}
+
+  label.field{display:block; margin-bottom:16px;}
+  label.field span.lbl{
+    display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--paper-faint); margin-bottom:7px; font-family:'IBM Plex Mono',monospace;
+  }
+
+  input[type=file]{
+    width:100%; padding:12px; background:var(--panel-2); border:1px dashed var(--line);
+    border-radius:8px; color:var(--paper); font-size:14px; font-family:inherit;
+  }
+  select, input[type=range]{width:100%;}
+  select{
+    padding:10px 12px; background:var(--panel-2); color:var(--paper);
+    border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit;
+  }
+  input[type=range]{accent-color:var(--amber);}
+
+  .row{display:flex; gap:14px; flex-wrap:wrap;}
+  .row > *{flex:1; min-width:140px;}
+
+  button.primary{
+    font-family:'IBM Plex Mono', monospace; font-weight:500; font-size:14px;
+    letter-spacing:.04em; text-transform:uppercase;
+    padding:13px 20px; border-radius:8px; border:none; cursor:pointer;
+    background:var(--amber); color:#211505; width:100%;
+    transition:filter .15s ease, transform .1s ease;
+  }
+  button.primary:hover{filter:brightness(1.08);}
+  button.primary:active{transform:scale(.99);}
+  button.primary.stop{background:var(--danger); color:#2a0d0a;}
+  button.primary.cyan{background:var(--cyan); color:#0d2426;}
+  button.primary:disabled{background:var(--line); color:var(--paper-faint); cursor:not-allowed;}
+  button.ghost{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; text-transform:uppercase;
+    letter-spacing:.06em; background:transparent; border:1px solid var(--line);
+    color:var(--paper-dim); padding:9px 14px; border-radius:8px; cursor:pointer;
+  }
+  button.ghost:hover{color:var(--paper); border-color:var(--paper-faint);}
+
+  :focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+  /* ---------- aperture / QR stage ---------- */
+  .stage{
+    margin:22px auto 8px; width:min(280px, 100%); aspect-ratio:1/1; position:relative;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .aperture-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:1px solid var(--line);
+  }
+  .aperture-ring::before{
+    content:""; position:absolute; inset:-1px; border-radius:50%;
+    border:1px dashed var(--amber-dim);
+  }
+  .aperture-ring.spinning{animation:spin 9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .qr-plate{
+    width:82%; aspect-ratio:1/1; background:var(--paper); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    box-shadow:0 0 0 6px var(--panel-2);
+  }
+  .qr-plate img, .qr-plate canvas{display:block; width:100%; height:100%;}
+  .qr-plate .empty{color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; font-size:12px; text-align:center; padding:12px;}
+
+  .counter-row{
+    display:flex; align-items:center; justify-content:center; gap:18px; margin:18px 0 4px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .counter{
+    background:#0e0d09; border:1px solid var(--line); border-radius:6px;
+    padding:6px 12px; font-size:15px; color:var(--amber); letter-spacing:.05em;
+  }
+  .cycle{color:var(--paper-faint); font-size:12px;}
+
+  .fingerprint{
+    text-align:center; font-family:'IBM Plex Mono', monospace; font-size:11px;
+    color:var(--paper-faint); letter-spacing:.03em; margin-top:14px; word-break:break-all;
+  }
+  .fingerprint b{color:var(--paper-dim); font-weight:500;}
+
+  .stats-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px 16px;
+    margin-top:18px; padding-top:16px; border-top:1px solid var(--line);
+  }
+  .stats-grid .stat{display:flex; flex-direction:column; gap:3px;}
+  .stats-grid .stat .k{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.07em;
+    text-transform:uppercase; color:var(--paper-faint);
+  }
+  .stats-grid .stat .v{font-family:'IBM Plex Mono',monospace; font-size:14px; color:var(--paper-dim);}
+  .stats-grid .stat.accent .v{color:var(--amber);}
+  .stats-grid .stat.accent-cyan .v{color:var(--cyan);}
+  @media (min-width:480px){ .stats-grid{grid-template-columns:1fr 1fr 1fr 1fr;} }
+
+  /* ---------- viewfinder ---------- */
+  .viewfinder{
+    position:relative; width:100%; aspect-ratio:1/1; max-width:340px; margin:22px auto 8px;
+    background:#0b0a07; border-radius:10px; overflow:hidden; border:1px solid var(--line);
+  }
+  .viewfinder video{width:100%; height:100%; object-fit:cover; display:block;}
+  .corner{position:absolute; width:26px; height:26px; border-color:var(--cyan);}
+  .corner.tl{top:10px; left:10px; border-top:2px solid; border-left:2px solid; border-radius:4px 0 0 0;}
+  .corner.tr{top:10px; right:10px; border-top:2px solid; border-right:2px solid; border-radius:0 4px 0 0;}
+  .corner.bl{bottom:10px; left:10px; border-bottom:2px solid; border-left:2px solid; border-radius:0 0 0 4px;}
+  .corner.br{bottom:10px; right:10px; border-bottom:2px solid; border-right:2px solid; border-radius:0 0 4px 0;}
+  .scanline{
+    position:absolute; left:6%; right:6%; height:2px; background:var(--cyan);
+    box-shadow:0 0 8px var(--cyan); top:50%; opacity:.85;
+    animation:scan 2.6s ease-in-out infinite;
+  }
+  @keyframes scan{
+    0%,100%{top:12%;} 50%{top:88%;}
+  }
+  .viewfinder .placeholder{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--paper-faint); font-family:'IBM Plex Mono',monospace; font-size:12px;
+    text-align:center; padding:20px;
+  }
+
+  .progress-track{
+    height:6px; border-radius:4px; background:var(--panel-2); overflow:hidden; margin:18px 0 8px;
+    border:1px solid var(--line);
+  }
+  .progress-fill{height:100%; width:0%; background:var(--cyan); transition:width .2s ease;}
+  .progress-label{
+    display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace;
+    font-size:12px; color:var(--paper-faint);
+  }
+
+  .result{
+    margin-top:18px; padding:16px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:8px;
+  }
+  .result .name{font-weight:600; font-size:15px; margin-bottom:4px; word-break:break-all;}
+  .result .meta{color:var(--paper-faint); font-size:12px; font-family:'IBM Plex Mono',monospace; margin-bottom:12px;}
+  .verify{
+    display:flex; align-items:center; gap:8px; font-size:12px; font-family:'IBM Plex Mono',monospace;
+    margin-bottom:12px;
+  }
+  .verify .dot{width:8px; height:8px; border-radius:50%; background:var(--good);}
+  .verify.bad .dot{background:var(--danger);}
+  .verify.bad{color:var(--danger);}
+  .verify.good{color:var(--good);}
+
+  .note{
+    margin-top:20px; font-size:13px; color:var(--paper-faint); line-height:1.6;
+    border-top:1px solid var(--line); padding-top:16px;
+  }
+  .note strong{color:var(--paper-dim);}
+
+  details{margin-top:14px; font-size:13px; color:var(--paper-dim);}
+  details summary{
+    cursor:pointer; font-family:'IBM Plex Mono', monospace; font-size:12px;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--paper-faint);
+  }
+  details p{line-height:1.65; margin:10px 0 0;}
+  details.adv .adv-body{
+    margin-top:14px; display:flex; flex-direction:column; gap:14px;
+  }
+  details.adv input[type=number]{
+    width:100%; padding:10px 12px; background:var(--panel-2); color:var(--paper);
+    border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:'IBM Plex Mono',monospace;
+  }
+
+  .warn{
+    background:rgba(217,105,95,.1); border:1px solid rgba(217,105,95,.35); color:#e8a49e;
+    padding:10px 12px; border-radius:8px; font-size:13px; margin-bottom:16px; display:none;
+  }
+  .warn.show{display:block;}
+
+  footer{text-align:center; margin-top:36px; font-size:12px; color:var(--paper-faint); font-family:'IBM Plex Mono',monospace;}
+
+  @media (prefers-reduced-motion: reduce){
+    .aperture-ring.spinning, .scanline{animation:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Optische Übertragung · kein Server</p>
+    <h1>Lichtbrücke</h1>
+    <p class="tagline">Eine Datei wird in Bildfolgen aus QR-Codes zerlegt und auf dem Bildschirm abgespielt. Ein zweites Gerät liest sie per Kamera wieder zusammen. Dazwischen liegt nur Licht — kein Upload, kein Zwischenspeicher.</p>
+  </header>
+
+  <div class="dial">
+    <button id="tabSend" class="active">Senden</button>
+    <button id="tabReceive">Empfangen</button>
+  </div>
+
+  <!-- ============ SENDER ============ -->
+  <section class="panel" id="panelSend">
+    <div class="warn" id="sendWarn"></div>
+
+    <label class="field">
+      <span class="lbl">Datei auswählen</span>
+      <input type="file" id="fileInput">
+    </label>
+
+    <div class="row">
+      <label class="field">
+        <span class="lbl">Übertragungsdichte</span>
+        <select id="densitySelect">
+          <option value="300">Fein — mehr Bilder, leichter zu lesen</option>
+          <option value="600" selected>Normal</option>
+          <option value="1100">Grob — weniger Bilder, dichter Code</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="lbl">Bildrate: <span id="fpsVal">6</span>/s</span>
+        <input type="range" id="fpsRange" min="2" max="12" value="6">
+      </label>
+    </div>
+
+    <details class="adv">
+      <summary>Erweiterte Einstellungen</summary>
+      <div class="adv-body">
+        <div class="row">
+          <label class="field">
+            <span class="lbl">Eigene Blockgröße (Byte)</span>
+            <input type="number" id="chunkSizeInput" min="80" max="2500" step="10" value="600">
+          </label>
+          <label class="field">
+            <span class="lbl">Fehlerkorrektur</span>
+            <select id="eccSelect">
+              <option value="L" selected>Niedrig (L) — mehr Daten pro Bild</option>
+              <option value="M">Mittel (M)</option>
+              <option value="Q">Hoch (Q)</option>
+              <option value="H">Sehr hoch (H) — robust, weniger Daten</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span class="lbl">Farbmodus</span>
+          <select id="colorModeSelect">
+            <option value="normal" selected>Normal — dunkel auf hell</option>
+            <option value="inverted">Invertiert — hell auf dunkel</option>
+          </select>
+        </label>
+      </div>
+    </details>
+
+    <button class="primary" id="sendToggle" disabled>Übertragung starten</button>
+
+    <div class="stage">
+      <div class="aperture-ring" id="apertureRing"></div>
+      <div class="qr-plate" id="qrPlate"><span class="empty">Noch keine Datei geladen</span></div>
+    </div>
+
+    <div class="counter-row">
+      <span class="counter" id="frameCounter">000 / 000</span>
+      <span class="cycle" id="cycleCounter">Durchlauf 0</span>
+    </div>
+
+    <p class="fingerprint" id="sendFingerprint"></p>
+
+    <div class="stats-grid" id="sendStats">
+      <div class="stat"><span class="k">Dateigröße</span><span class="v" id="statFileSize">–</span></div>
+      <div class="stat"><span class="k">Blöcke gesamt</span><span class="v" id="statTotalBlocks">–</span></div>
+      <div class="stat"><span class="k">Blockgröße</span><span class="v" id="statChunkSize">–</span></div>
+      <div class="stat"><span class="k">Dauer je Durchlauf</span><span class="v" id="statCycleTime">–</span></div>
+      <div class="stat accent"><span class="k">Datendurchsatz</span><span class="v" id="statThroughput">–</span></div>
+      <div class="stat"><span class="k">Laufzeit</span><span class="v" id="statElapsed">–</span></div>
+      <div class="stat"><span class="k">Durchläufe</span><span class="v" id="statCycles">–</span></div>
+    </div>
+
+    <details>
+      <summary>So funktioniert das</summary>
+      <p>Die Datei wird in kleine Blöcke geteilt und jeder Block als eigener QR-Code angezeigt, im Kreis, immer wieder von vorn. Das Empfangsgerät sammelt die Blöcke ein, egal in welcher Reihenfolge oder wie oft einer verpasst wird — sobald alle da sind, setzt es die Datei zusammen und prüft die Prüfsumme. Es findet keine Verbindung zwischen den Geräten statt, nur das, was die Kamera sieht.</p>
+    </details>
+  </section>
+
+  <!-- ============ RECEIVER ============ -->
+  <section class="panel hidden" id="panelReceive">
+    <div class="row" style="align-items:flex-end;">
+      <label class="field" style="margin-bottom:0;">
+        <span class="lbl">Kamera</span>
+        <select id="cameraSelect"><option value="">Standardkamera</option></select>
+      </label>
+      <button class="ghost" id="torchToggle" disabled style="flex:0 0 auto; min-width:auto; align-self:stretch;">Taschenlampe an</button>
+    </div>
+
+    <button class="primary cyan" id="scanToggle" style="margin-top:16px;">Kamera starten</button>
+
+    <details class="adv">
+      <summary>Erweiterte Einstellungen</summary>
+      <div class="adv-body">
+        <label class="field">
+          <span class="lbl">Scan-Auflösung</span>
+          <select id="scanResSelect">
+            <option value="480">Niedrig — schneller, kürzere Reichweite</option>
+            <option value="640" selected>Mittel</option>
+            <option value="960">Hoch — mehr Details, langsamer</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lbl">Erkennungsmodus</span>
+          <select id="inversionSelect">
+            <option value="dontInvert" selected>Nur normal — am schnellsten</option>
+            <option value="attemptBoth">Auch invertierte Codes versuchen — robuster, langsamer</option>
+          </select>
+        </label>
+      </div>
+    </details>
+
+    <div class="viewfinder" id="viewfinder">
+      <video id="video" playsinline muted></video>
+      <div class="placeholder" id="vfPlaceholder">Kamera ist noch aus — auf die sendende Bildfolge richten, sobald sie läuft.</div>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="scanline hidden" id="scanline"></div>
+    </div>
+
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label">
+      <span id="progressLabel">0 / 0 Blöcke</span>
+      <button class="ghost" id="resetScan">Zurücksetzen</button>
+    </div>
+
+    <div class="stats-grid" id="recvStats">
+      <div class="stat"><span class="k">Verstrichene Zeit</span><span class="v" id="statRecvElapsed">–</span></div>
+      <div class="stat accent-cyan"><span class="k">Empfangsrate</span><span class="v" id="statRecvRate">–</span></div>
+      <div class="stat accent-cyan"><span class="k">Geschätzte Restzeit</span><span class="v" id="statRecvEta">–</span></div>
+      <div class="stat"><span class="k">Datendurchsatz</span><span class="v" id="statRecvThroughput">–</span></div>
+      <div class="stat"><span class="k">Bilder erkannt</span><span class="v" id="statRecvFrames">–</span></div>
+      <div class="stat"><span class="k">Dopplungen</span><span class="v" id="statRecvDupes">–</span></div>
+    </div>
+
+    <div class="result hidden" id="resultBox">
+      <div class="name" id="resultName"></div>
+      <div class="meta" id="resultMeta"></div>
+      <div class="verify good" id="resultVerify"><span class="dot"></span><span id="verifyText">Prüfsumme stimmt überein</span></div>
+      <button class="primary" id="downloadBtn">Datei herunterladen</button>
+    </div>
+  </section>
+
+  <div class="note">
+    <strong>Reichweite:</strong> gut geeignet für Dateien bis in den einstelligen Megabyte-Bereich. Größere Dateien brauchen entsprechend mehr Bilder und damit Geduld und eine ruhige Kamera.
+  </div>
+
+  <footer>keine Uploads · keine Server · nur Licht zwischen zwei Bildschirmen</footer>
+</div>
+
+<canvas id="hiddenCanvas" class="hidden"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- tab switching ----------------
+  const tabSend = document.getElementById('tabSend');
+  const tabReceive = document.getElementById('tabReceive');
+  const panelSend = document.getElementById('panelSend');
+  const panelReceive = document.getElementById('panelReceive');
+
+  tabSend.addEventListener('click', () => {
+    tabSend.classList.add('active'); tabReceive.classList.remove('active');
+    panelSend.classList.remove('hidden'); panelReceive.classList.add('hidden');
+    stopScanning();
+  });
+  tabReceive.addEventListener('click', () => {
+    tabReceive.classList.add('active'); tabSend.classList.remove('active');
+    panelReceive.classList.remove('hidden'); panelSend.classList.add('hidden');
+    stopTransmit();
+  });
+
+  // ================= SENDER =================
+  const fileInput = document.getElementById('fileInput');
+  const densitySelect = document.getElementById('densitySelect');
+  const chunkSizeInput = document.getElementById('chunkSizeInput');
+  const eccSelect = document.getElementById('eccSelect');
+  const colorModeSelect = document.getElementById('colorModeSelect');
+  const fpsRange = document.getElementById('fpsRange');
+  const fpsVal = document.getElementById('fpsVal');
+  const sendToggle = document.getElementById('sendToggle');
+  const qrPlate = document.getElementById('qrPlate');
+  const apertureRing = document.getElementById('apertureRing');
+  const frameCounter = document.getElementById('frameCounter');
+  const cycleCounter = document.getElementById('cycleCounter');
+  const sendFingerprint = document.getElementById('sendFingerprint');
+  const sendWarn = document.getElementById('sendWarn');
+  const statFileSize = document.getElementById('statFileSize');
+  const statTotalBlocks = document.getElementById('statTotalBlocks');
+  const statChunkSize = document.getElementById('statChunkSize');
+  const statCycleTime = document.getElementById('statCycleTime');
+  const statThroughput = document.getElementById('statThroughput');
+  const statElapsed = document.getElementById('statElapsed');
+  const statCycles = document.getElementById('statCycles');
+
+  let transmitStartTime = null;
+  let statsTimer = null;
+
+  let frames = [];
+  let qrObj = null;
+  let transmitTimer = null;
+  let frameIndex = 0;
+  let cycleCount = 0;
+  let currentFile = null;
+  let currentHashHex = '';
+  let transferId = '';
+  let currentTotalBlocks = 0;
+  let currentChunkBytes = 0;
+
+  fpsRange.addEventListener('input', () => {
+    fpsVal.textContent = fpsRange.value;
+    if (transmitTimer) { stopTimerOnly(); startTimerOnly(); }
+    if (currentTotalBlocks) updateStaticStats(currentFile ? currentFile.size : 0, currentTotalBlocks, currentChunkBytes);
+  });
+
+  function bytesToBase64(bytes){
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  async function sha256Hex(buffer){
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function humanSize(n){
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+    return (n/1024/1024).toFixed(2) + ' MB';
+  }
+
+  function formatDuration(sec){
+    if (!isFinite(sec) || sec < 0) return '–';
+    if (sec < 60) return sec.toFixed(1).replace('.', ',') + ' s';
+    const m = Math.floor(sec/60), s = Math.round(sec%60);
+    return m + ':' + String(s).padStart(2,'0') + ' min';
+  }
+  function formatRate(bytesPerSec){
+    if (!isFinite(bytesPerSec) || bytesPerSec <= 0) return '–';
+    return humanSize(Math.round(bytesPerSec)) + '/s';
+  }
+
+  async function prepareFile(file){
+    showWarn('');
+    stopTransmit();
+    sendToggle.disabled = true;
+    sendToggle.textContent = 'Datei wird vorbereitet…';
+    currentFile = file;
+
+    const buf = await file.arrayBuffer();
+    currentHashHex = await sha256Hex(buf);
+    transferId = Math.random().toString(16).slice(2, 10);
+
+    const chunkSize = Math.max(50, parseInt(chunkSizeInput.value, 10) || 600);
+    const bytes = new Uint8Array(buf);
+    const total = Math.max(1, Math.ceil(bytes.length / chunkSize));
+    const built = [];
+    for (let i = 0; i < total; i++){
+      const slice = bytes.subarray(i*chunkSize, Math.min((i+1)*chunkSize, bytes.length));
+      const payload = {
+        id: transferId, i, n: total,
+        name: file.name, size: bytes.length,
+        type: file.type || 'application/octet-stream',
+        h: currentHashHex,
+        d: bytesToBase64(slice)
+      };
+      built.push(JSON.stringify(payload));
+    }
+    frames = built;
+    frameIndex = 0; cycleCount = 0;
+    currentTotalBlocks = total; currentChunkBytes = chunkSize;
+    updateCounter();
+    sendFingerprint.innerHTML = '<b>Prüfsumme</b> ' + currentHashHex.slice(0,16) + '… · ' + humanSize(bytes.length) + ' · ' + total + ' Blöcke';
+    updateStaticStats(bytes.length, total, chunkSize);
+    sendToggle.disabled = false;
+    sendToggle.textContent = 'Übertragung starten';
+  }
+
+  function updateStaticStats(fileBytes, totalBlocks, chunkBytes){
+    const fps = parseInt(fpsRange.value, 10);
+    statFileSize.textContent = humanSize(fileBytes);
+    statTotalBlocks.textContent = String(totalBlocks);
+    statChunkSize.textContent = chunkBytes + ' B roh';
+    statCycleTime.textContent = formatDuration(totalBlocks / fps);
+    statThroughput.textContent = formatRate(chunkBytes * fps);
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) prepareFile(file).catch(err => showWarn('Datei konnte nicht gelesen werden: ' + err.message));
+  });
+
+  densitySelect.addEventListener('change', () => {
+    chunkSizeInput.value = densitySelect.value;
+    if (currentFile) prepareFile(currentFile).catch(()=>{});
+  });
+
+  chunkSizeInput.addEventListener('change', () => {
+    if (currentFile) prepareFile(currentFile).catch(()=>{});
+  });
+
+  eccSelect.addEventListener('change', () => {
+    qrObj = null;
+    if (frames.length) renderFrame();
+  });
+
+  colorModeSelect.addEventListener('change', () => {
+    qrObj = null;
+    if (frames.length) renderFrame();
+  });
+
+  function showWarn(msg){
+    if (!msg){ sendWarn.classList.remove('show'); sendWarn.textContent=''; return; }
+    sendWarn.textContent = msg; sendWarn.classList.add('show');
+  }
+
+  function renderFrame(){
+    const text = frames[frameIndex];
+    try{
+      if (!qrObj){
+        qrPlate.innerHTML = '';
+        const inverted = colorModeSelect.value === 'inverted';
+        qrObj = new QRCode(qrPlate, {
+          text, width: 400, height: 400,
+          colorDark: inverted ? '#f2efe9' : '#14130f',
+          colorLight: inverted ? '#14130f' : '#f2efe9',
+          correctLevel: QRCode.CorrectLevel[eccSelect.value] ?? QRCode.CorrectLevel.L
+        });
+      } else {
+        qrObj.clear();
+        qrObj.makeCode(text);
+      }
+      showWarn('');
+    } catch(err){
+      showWarn('Der Datenblock ist zu groß für diese Fehlerkorrektur. Bitte eine kleinere Blockgröße oder eine niedrigere Fehlerkorrektur wählen.');
+      stopTransmit();
+      return;
+    }
+    updateCounter();
+  }
+
+  function updateCounter(){
+    const n = frames.length || 0;
+    frameCounter.textContent = String(frameIndex+1).padStart(3,'0') + ' / ' + String(n).padStart(3,'0');
+    cycleCounter.textContent = 'Durchlauf ' + (cycleCount+1);
+  }
+
+  function startTimerOnly(){
+    const fps = parseInt(fpsRange.value, 10);
+    transmitTimer = setInterval(() => {
+      frameIndex++;
+      if (frameIndex >= frames.length){ frameIndex = 0; cycleCount++; }
+      renderFrame();
+    }, 1000/fps);
+  }
+  function stopTimerOnly(){
+    if (transmitTimer){ clearInterval(transmitTimer); transmitTimer = null; }
+  }
+
+  function startTransmit(){
+    if (!frames.length) return;
+    frameIndex = 0; cycleCount = 0;
+    renderFrame();
+    startTimerOnly();
+    apertureRing.classList.add('spinning');
+    sendToggle.textContent = 'Übertragung stoppen';
+    sendToggle.classList.add('stop');
+    transmitStartTime = Date.now();
+    if (statsTimer) clearInterval(statsTimer);
+    statsTimer = setInterval(updateLiveSendStats, 250);
+    updateLiveSendStats();
+  }
+  function stopTransmit(){
+    stopTimerOnly();
+    apertureRing.classList.remove('spinning');
+    sendToggle.textContent = 'Übertragung starten';
+    sendToggle.classList.remove('stop');
+    if (statsTimer){ clearInterval(statsTimer); statsTimer = null; }
+  }
+
+  function updateLiveSendStats(){
+    if (transmitStartTime){
+      statElapsed.textContent = formatDuration((Date.now() - transmitStartTime) / 1000);
+    }
+    statCycles.textContent = String(cycleCount);
+  }
+
+  sendToggle.addEventListener('click', () => {
+    if (transmitTimer) stopTransmit(); else startTransmit();
+  });
+
+  // ================= RECEIVER =================
+  const scanToggle = document.getElementById('scanToggle');
+  const video = document.getElementById('video');
+  const vfPlaceholder = document.getElementById('vfPlaceholder');
+  const scanline = document.getElementById('scanline');
+  const hiddenCanvas = document.getElementById('hiddenCanvas');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const resultBox = document.getElementById('resultBox');
+  const resultName = document.getElementById('resultName');
+  const resultMeta = document.getElementById('resultMeta');
+  const resultVerify = document.getElementById('resultVerify');
+  const verifyText = document.getElementById('verifyText');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetScan = document.getElementById('resetScan');
+  const cameraSelect = document.getElementById('cameraSelect');
+  const torchToggle = document.getElementById('torchToggle');
+  const scanResSelect = document.getElementById('scanResSelect');
+  const inversionSelect = document.getElementById('inversionSelect');
+  const statRecvElapsed = document.getElementById('statRecvElapsed');
+  const statRecvRate = document.getElementById('statRecvRate');
+  const statRecvEta = document.getElementById('statRecvEta');
+  const statRecvThroughput = document.getElementById('statRecvThroughput');
+  const statRecvFrames = document.getElementById('statRecvFrames');
+  const statRecvDupes = document.getElementById('statRecvDupes');
+
+  let recvStartTime = null;
+  let recvStatsTimer = null;
+  let totalFramesDecoded = 0;
+  let duplicateFrames = 0;
+
+  let stream = null;
+  let rafHandle = null;
+  let scanning = false;
+  let torchOn = false;
+  let receivedChunks = new Map();
+  let recvId = null, recvTotal = 0, recvName = '', recvSize = 0, recvType = '', recvHash = '';
+  let downloadUrl = null;
+
+  function resetReceiverState(){
+    receivedChunks = new Map();
+    recvId = null; recvTotal = 0; recvName=''; recvSize=0; recvType=''; recvHash='';
+    progressFill.style.width = '0%';
+    progressLabel.textContent = '0 / 0 Blöcke';
+    resultBox.classList.add('hidden');
+    if (downloadUrl){ URL.revokeObjectURL(downloadUrl); downloadUrl = null; }
+    totalFramesDecoded = 0; duplicateFrames = 0;
+    recvStartTime = scanning ? Date.now() : null;
+    updateRecvStats();
+  }
+  resetScan.addEventListener('click', resetReceiverState);
+
+  async function populateCameraList(){
+    try{
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      if (!cams.length) return;
+      const prevValue = cameraSelect.value;
+      cameraSelect.innerHTML = '<option value="">Standardkamera</option>';
+      cams.forEach((cam, idx) => {
+        const opt = document.createElement('option');
+        opt.value = cam.deviceId;
+        opt.textContent = cam.label || ('Kamera ' + (idx + 1));
+        cameraSelect.appendChild(opt);
+      });
+      if (prevValue) cameraSelect.value = prevValue;
+    } catch(e){ /* Geräteliste optional, kein harter Fehler */ }
+  }
+
+  async function startScanning(){
+    const deviceId = cameraSelect.value;
+    const videoConstraints = deviceId
+      ? { deviceId: { exact: deviceId } }
+      : { facingMode: { ideal: 'environment' } };
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+    } catch(err){
+      alert('Kamerazugriff nicht möglich: ' + err.message + '\nHinweis: Falls diese Seite in einer Vorschau ohne Kamerafreigabe läuft, die Datei herunterladen und lokal im Browser öffnen.');
+      return;
+    }
+    video.srcObject = stream;
+    await video.play();
+    populateCameraList();
+
+    torchOn = false;
+    torchToggle.textContent = 'Taschenlampe an';
+    try{
+      const track = stream.getVideoTracks()[0];
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      torchToggle.disabled = !caps.torch;
+    } catch(e){ torchToggle.disabled = true; }
+
+    vfPlaceholder.classList.add('hidden');
+    scanline.classList.remove('hidden');
+    scanning = true;
+    scanToggle.textContent = 'Kamera stoppen';
+    scanToggle.classList.add('stop');
+    recvStartTime = Date.now();
+    totalFramesDecoded = 0; duplicateFrames = 0;
+    if (recvStatsTimer) clearInterval(recvStatsTimer);
+    recvStatsTimer = setInterval(updateRecvStats, 250);
+    rafHandle = requestAnimationFrame(scanLoop);
+  }
+
+  function stopScanning(){
+    scanning = false;
+    if (rafHandle) cancelAnimationFrame(rafHandle);
+    rafHandle = null;
+    if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null;
+    vfPlaceholder.classList.remove('hidden');
+    scanline.classList.add('hidden');
+    scanToggle.textContent = 'Kamera starten';
+    scanToggle.classList.remove('stop');
+    torchOn = false;
+    torchToggle.disabled = true;
+    torchToggle.textContent = 'Taschenlampe an';
+    if (recvStatsTimer){ clearInterval(recvStatsTimer); recvStatsTimer = null; }
+  }
+
+  cameraSelect.addEventListener('change', () => {
+    if (scanning){ stopScanning(); startScanning(); }
+  });
+
+  torchToggle.addEventListener('click', async () => {
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    torchOn = !torchOn;
+    try{
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+      torchToggle.textContent = torchOn ? 'Taschenlampe aus' : 'Taschenlampe an';
+    } catch(e){
+      torchOn = !torchOn;
+    }
+  });
+
+  function updateRecvStats(){
+    statRecvFrames.textContent = String(totalFramesDecoded);
+    statRecvDupes.textContent = String(duplicateFrames);
+    if (!recvStartTime){
+      statRecvElapsed.textContent = '–'; statRecvRate.textContent = '–';
+      statRecvEta.textContent = '–'; statRecvThroughput.textContent = '–';
+      return;
+    }
+    const elapsedSec = (Date.now() - recvStartTime) / 1000;
+    statRecvElapsed.textContent = formatDuration(elapsedSec);
+    const receivedCount = receivedChunks.size;
+    const rate = elapsedSec > 0 ? receivedCount / elapsedSec : 0;
+    statRecvRate.textContent = rate > 0 ? rate.toFixed(1).replace('.', ',') + ' Blöcke/s' : '–';
+    if (recvTotal && rate > 0){
+      const remaining = Math.max(0, recvTotal - receivedCount);
+      statRecvEta.textContent = remaining > 0 ? formatDuration(remaining / rate) : '00:00';
+    } else {
+      statRecvEta.textContent = '–';
+    }
+    if (recvTotal && recvSize && rate > 0){
+      const avgChunkBytes = recvSize / recvTotal;
+      statRecvThroughput.textContent = formatRate(rate * avgChunkBytes);
+    } else {
+      statRecvThroughput.textContent = '–';
+    }
+  }
+
+  scanToggle.addEventListener('click', () => {
+    if (scanning) stopScanning(); else startScanning();
+  });
+
+  const ctx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
+
+  function scanLoop(){
+    if (!scanning) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA){
+      const maxDim = parseInt(scanResSelect.value, 10) || 640;
+      const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+      const w = Math.max(1, Math.round(video.videoWidth * scale));
+      const h = Math.max(1, Math.round(video.videoHeight * scale));
+      hiddenCanvas.width = w; hiddenCanvas.height = h;
+      ctx.drawImage(video, 0, 0, w, h);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const code = jsQR(imgData.data, w, h, { inversionAttempts: inversionSelect.value || 'dontInvert' });
+      if (code && code.data) handleDecoded(code.data);
+    }
+    rafHandle = requestAnimationFrame(scanLoop);
+  }
+
+  function handleDecoded(text){
+    let payload;
+    try{ payload = JSON.parse(text); } catch(e){ return; }
+    if (!payload || typeof payload.i !== 'number' || !payload.id) return;
+    totalFramesDecoded++;
+
+    if (recvId !== payload.id){
+      // new transfer detected
+      receivedChunks = new Map();
+      recvId = payload.id;
+      recvTotal = payload.n;
+      recvName = payload.name;
+      recvSize = payload.size;
+      recvType = payload.type;
+      recvHash = payload.h;
+      resultBox.classList.add('hidden');
+    }
+    if (!receivedChunks.has(payload.i)){
+      receivedChunks.set(payload.i, payload.d);
+      updateProgress();
+      if (receivedChunks.size === recvTotal) assembleFile();
+    } else {
+      duplicateFrames++;
+    }
+  }
+
+  function updateProgress(){
+    const pct = recvTotal ? Math.round((receivedChunks.size / recvTotal) * 100) : 0;
+    progressFill.style.width = pct + '%';
+    progressLabel.textContent = receivedChunks.size + ' / ' + recvTotal + ' Blöcke';
+  }
+
+  async function assembleFile(){
+    const parts = [];
+    for (let i = 0; i < recvTotal; i++){
+      const b64 = receivedChunks.get(i);
+      const binary = atob(b64);
+      const arr = new Uint8Array(binary.length);
+      for (let j = 0; j < binary.length; j++) arr[j] = binary.charCodeAt(j);
+      parts.push(arr);
+    }
+    const blob = new Blob(parts, { type: recvType });
+    const buf = await blob.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
+
+    if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+    downloadUrl = URL.createObjectURL(blob);
+
+    resultName.textContent = recvName;
+    resultMeta.textContent = humanSize(recvSize) + ' · ' + (recvType || 'unbekannter Typ');
+
+    if (hex === recvHash){
+      resultVerify.classList.remove('bad'); resultVerify.classList.add('good');
+      verifyText.textContent = 'Prüfsumme stimmt überein';
+    } else {
+      resultVerify.classList.remove('good'); resultVerify.classList.add('bad');
+      verifyText.textContent = 'Prüfsumme weicht ab — Datei sicherheitshalber erneut übertragen';
+    }
+    resultBox.classList.remove('hidden');
+
+    downloadBtn.onclick = () => {
+      const a = document.createElement('a');
+      a.href = downloadUrl; a.download = recvName || 'datei';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+  }
+
+})();
+</script>
+</body>
+</html>
